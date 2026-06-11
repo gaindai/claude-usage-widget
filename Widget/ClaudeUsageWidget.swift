@@ -18,7 +18,7 @@ struct ClaudeUsageWidget: Widget {
             WidgetRootView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
-        .configurationDisplayName("Claude Usage")
+        .configurationDisplayName("Claude Code Usage")
         .description("Claude Code limits and token usage.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
@@ -91,7 +91,7 @@ struct WidgetRootView: View {
                 Image(systemName: "moon.zzz")
                     .imageScale(.large)
                     .foregroundStyle(.secondary)
-                Text("Open “Claude Usage” once, then data will appear here.")
+                Text("Open “Claude Code Usage” once, then data will appear here.")
                     .font(.caption2)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
@@ -236,7 +236,7 @@ private struct LargeView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Claude Usage").font(.headline)
+                Text("Claude Code Usage").font(.headline)
                 Spacer()
                 if isStale { StaleBadge() }
             }

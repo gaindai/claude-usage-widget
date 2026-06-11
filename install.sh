@@ -1,5 +1,5 @@
 #!/bin/bash
-# Claude Usage — one-command install.
+# Claude Code Usage — one-command install.
 # Builds the app locally from source and installs it to /Applications
 # (or ~/Applications for non-admin accounts).
 set -euo pipefail
@@ -10,7 +10,7 @@ bold() { printf '\033[1m%s\033[0m\n' "$1"; }
 # 1. macOS 14+ (Sonoma) required — desktop widgets don't exist before that.
 MAJOR=$(sw_vers -productVersion | cut -d. -f1)
 if [ "$MAJOR" -lt 14 ]; then
-  bold "❌ Claude Usage requires macOS 14 (Sonoma) or newer — found $(sw_vers -productVersion)."
+  bold "❌ Claude Code Usage requires macOS 14 (Sonoma) or newer — found $(sw_vers -productVersion)."
   exit 1
 fi
 
@@ -66,7 +66,7 @@ EOF
   rm -rf "$CWORK"
 fi
 
-bold "🔨 Building Claude Usage (Release) — first build takes 1-2 minutes …"
+bold "🔨 Building Claude Code Usage (Release) — first build takes 1-2 minutes …"
 /usr/bin/xcrun xcodebuild -project ClaudeUsage.xcodeproj -scheme ClaudeUsage \
   -configuration Release -derivedDataPath build -quiet \
   CODE_SIGN_IDENTITY="$CERT_NAME" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" \
@@ -100,4 +100,4 @@ open "$APP_DIR/Claude Usage.app"
 
 echo ""
 bold "✅ Done."
-echo "   Add the widget: right-click the desktop → \"Edit Widgets\" → Claude Usage"
+echo "   Add the widget: right-click the desktop → \"Edit Widgets\" → Claude Code Usage"

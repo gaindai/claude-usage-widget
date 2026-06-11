@@ -1,152 +1,184 @@
 import SwiftUI
 
-/// Guided first launch in three steps, each with a live checkmark:
-/// 1. Local data found (works without any permission)
-/// 2. Connect limits (keychain, skippable)
-/// 3. Add widget + autostart
+/// Guided first launch, streamlined to two real action steps and laid out on a
+/// single centered axis (matching the status window). The "we found your data"
+/// status is folded into the welcome header as a confirmation, not a step:
+/// 1. Show your usage limits (the point)   2. Add the widget + autostart.
 struct OnboardingView: View {
     @EnvironmentObject var state: AppState
+    @Environment(\.colorScheme) private var scheme
     @State private var connecting = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Welcome to Claude Usage")
-                    .font(.title.bold())
-                Text("Three steps, then your desktop shows your Claude Code usage.")
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 4) {
-                    Text("by")
+        ZStack(alignment: .top) {
+            DS.canvas(scheme).ignoresSafeArea()
+            BrandWash(accent: state.accent)
+
+            VStack(spacing: 0) {
+                welcomeHeader
+
+                Divider().opacity(0.5)
+
+                ScrollView {
+                    VStack(spacing: DS.Spacing.l) {
+                        stepLimits
+                        stepWidget
+                    }
+                    .padding(.horizontal, DS.Spacing.xxl)
+                    .padding(.vertical, DS.Spacing.xxl)
+                }
+
+                Divider().opacity(0.5)
+
+                VStack(spacing: DS.Spacing.s) {
+                    Text("Everything stays on your Mac — the only network call goes to api.anthropic.com.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Link("gaind.ai", destination: URL(string: "https://gaind.ai")!)
-                        .font(.caption)
+                        .multilineTextAlignment(.center)
+                    Button("Done") {
+                        state.onboardingCompleted = true
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .tint(state.accent.color)
                 }
+                .frame(maxWidth: .infinity)
+                .padding(DS.Spacing.l)
             }
-            .padding(24)
+        }
+        .frame(minWidth: 480, idealWidth: 560)
+    }
 
-            Divider()
+    // MARK: Welcome + data confirmation (centered hero)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    step1
-                    step2
-                    step3
-                }
-                .padding(24)
-            }
-
-            Divider()
-
-            HStack {
-                Text("Everything stays on your Mac — the only network call goes to api.anthropic.com.")
+    private var welcomeHeader: some View {
+        VStack(spacing: DS.Spacing.s) {
+            SignetDot(accent: state.accent, size: 12)
+            Text("Welcome to Claude Code Usage")
+                .font(.title.bold())
+                .multilineTextAlignment(.center)
+            Text("Two quick steps, then your desktop shows your Claude Code usage.")
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            HStack(spacing: DS.Spacing.xs) {
+                Text("by")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Spacer()
-                Button("Done") {
-                    state.onboardingCompleted = true
-                }
-                .keyboardShortcut(.defaultAction)
+                Link("gaind.ai", destination: URL(string: "https://gaind.ai")!)
+                    .font(.caption)
             }
-            .padding(16)
+
+            dataConfirmation
+                .padding(.top, DS.Spacing.s)
         }
-        .frame(minWidth: 540, minHeight: 580)
+        .frame(maxWidth: .infinity)
+        .padding(DS.Spacing.xxl)
+        .padding(.top, DS.Spacing.s)
     }
 
-    private var step1: some View {
-        StepBox(done: state.localDataAvailable, title: "1 · Local data") {
-            if state.localDataAvailable {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Found your Claude Code data — here's your week:")
-                    if let local = state.snapshot?.local {
-                        HStack(spacing: 24) {
-                            Metric(label: "Tokens (7 days)", value: Format.tokens(local.weekTokens))
-                            Metric(label: "Messages (7 days)", value: "\(local.weekMessages)")
-                            Metric(label: "Sessions today", value: "\(local.today?.sessionCount ?? 0)")
-                        }
-                    } else {
-                        ProgressView().controlSize(.small)
-                    }
+    @ViewBuilder
+    private var dataConfirmation: some View {
+        if state.localDataAvailable, let local = state.snapshot?.local, !local.days.isEmpty {
+            VStack(spacing: DS.Spacing.xs) {
+                HStack(spacing: DS.Spacing.xs) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(state.accent.color)
+                    Text("Found your Claude Code data · \(Format.tokens(local.weekTokens)) tokens this week")
+                        .font(.callout)
                 }
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("No ~/.claude directory found. Is Claude Code installed on this Mac and has it run at least once?")
-                        .foregroundStyle(.orange)
-                    Button("Check again") {
-                        Task { await state.refresh(force: true) }
-                    }
-                }
+                Sparkline(days: local.lastWeek, accent: state.accent, height: 36)
+                    .frame(maxWidth: 320)
             }
-        }
-    }
-
-    private var step2: some View {
-        StepBox(done: state.keychainConnected, title: "2 · Connect limits (optional)") {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Shows your 5-hour window and weekly limit, just like `/usage`. To do that the app reads the Claude Code token from the keychain — it is only ever sent to api.anthropic.com for this request and never stored or logged.")
-                    .fixedSize(horizontal: false, vertical: true)
-                if state.keychainConnected, let rl = state.snapshot?.rateLimits {
-                    HStack(spacing: 24) {
-                        Metric(label: "5-hour window", value: Format.percent(rl.fiveHourPercent))
-                        Metric(label: "Week", value: Format.percent(rl.sevenDayPercent))
-                    }
-                } else {
-                    HStack(spacing: 12) {
-                        Button {
-                            connecting = true
-                            Task {
-                                await state.connectRateLimits()
-                                connecting = false
-                            }
-                        } label: {
-                            if connecting {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Text("Connect — choose “Always Allow” in the dialog")
-                            }
-                        }
-                        .disabled(connecting)
-                    }
-                    if let error = state.rateLimitError {
-                        Text(error).font(.caption).foregroundStyle(.orange)
-                    }
-                    Text("Skipping is fine — the widget then shows local data only.")
-                        .font(.caption)
+            .frame(maxWidth: .infinity)
+        } else {
+            VStack(spacing: DS.Spacing.s) {
+                HStack(spacing: DS.Spacing.xs) {
+                    Image(systemName: "moon.zzz").foregroundStyle(.secondary)
+                    Text("No ~/.claude data yet — run Claude Code once.")
+                        .font(.callout)
                         .foregroundStyle(.secondary)
                 }
+                Button("Check again") {
+                    Task { await state.refresh(force: true) }
+                }
+                .controlSize(.small)
             }
+            .frame(maxWidth: .infinity)
         }
     }
 
-    private var step3: some View {
-        StepBox(done: state.loginItemEnabled, title: "3 · Add widget & autostart") {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Right-click the desktop → “Edit Widgets” → search for **Claude Usage** → pick a size and place it.")
+    // MARK: Step 1 — limits (the point)
+
+    private var stepLimits: some View {
+        StepBox(done: state.keychainConnected, accent: state.accent,
+                title: "1 · Show your usage limits") {
+            VStack(spacing: DS.Spacing.s) {
+                Text("The whole point: your live 5-hour window and weekly limit on the desktop, just like `/usage`. To do that the app reads the Claude Code token from the keychain — it is only ever sent to api.anthropic.com for this request and never stored or logged.")
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                HStack {
-                    Text("Widget accent color")
-                    Spacer()
-                    Picker("", selection: Binding(
-                        get: { state.accent },
-                        set: { state.setAccent($0) }
-                    )) {
-                        ForEach(WidgetAccent.allCases) { accent in
-                            Text(accent.displayName).tag(accent)
+                if state.keychainConnected, let rl = state.snapshot?.rateLimits {
+                    HStack(spacing: DS.Spacing.xxl) {
+                        RingGauge(value: rl.fiveHourPercent, label: "5 H", accent: state.accent,
+                                  diameter: 84, lineWidth: 9)
+                        RingGauge(value: rl.sevenDayPercent, label: "Week", accent: state.accent,
+                                  diameter: 84, lineWidth: 9)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, DS.Spacing.xs)
+                } else {
+                    Button {
+                        connecting = true
+                        Task {
+                            await state.connectRateLimits()
+                            connecting = false
+                        }
+                    } label: {
+                        if connecting {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Text("Connect — choose “Always Allow” in the dialog")
                         }
                     }
-                    .labelsHidden()
-                    .frame(maxWidth: 200)
+                    .tint(state.accent.color)
+                    .disabled(connecting)
+                    if let error = state.rateLimitError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(DS.danger)
+                            .multilineTextAlignment(.center)
+                    }
+                    Text("No keychain access? The widget still shows your local token usage.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
-                Toggle("Launch at login (recommended — keeps the widget current)",
-                       isOn: Binding(
-                        get: { state.loginItemEnabled },
-                        set: { state.setLoginItem($0) }
-                       ))
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    // MARK: Step 2 — widget + autostart
+
+    private var stepWidget: some View {
+        StepBox(done: state.loginItemEnabled, accent: state.accent,
+                title: "2 · Add the widget & keep it current") {
+            VStack(spacing: DS.Spacing.s) {
+                Text("Right-click the desktop → “Edit Widgets” → search for **Claude Code Usage** → pick a size and place it.")
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                Toggle("Launch at login", isOn: Binding(
+                    get: { state.loginItemEnabled },
+                    set: { state.setLoginItem($0) }
+                ))
+                .fixedSize()
+                Text("Recommended — keeps the widget current.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
                 if state.loginItemNeedsApproval {
-                    HStack(spacing: 8) {
+                    HStack(spacing: DS.Spacing.s) {
                         Text("macOS needs your approval under Login Items.")
                             .font(.caption)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(DS.danger)
                         Button("Open System Settings") {
                             LoginItemManager.openSystemSettings()
                         }
@@ -154,40 +186,38 @@ struct OnboardingView: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity)
         }
     }
 }
 
 private struct StepBox<Content: View>: View {
     let done: Bool
+    let accent: WidgetAccent
     let title: String
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(spacing: DS.Spacing.m) {
+            HStack(spacing: DS.Spacing.s) {
                 Image(systemName: done ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(done ? .green : .secondary)
+                    .foregroundStyle(done ? AnyShapeStyle(accent.color) : AnyShapeStyle(Color.secondary))
                     .imageScale(.large)
                 Text(title).font(.headline)
             }
+            .frame(maxWidth: .infinity)
             content
-                .padding(.leading, 28)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
-    }
-}
-
-struct Metric: View {
-    let label: String
-    let value: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value).font(.title3.bold().monospacedDigit())
-            Text(label).font(.caption).foregroundStyle(.secondary)
-        }
+        .padding(DS.Spacing.l)
+        .frame(maxWidth: .infinity)
+        .background(.regularMaterial,
+                    in: RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(colors: [DS.cardTopHighlight, .clear],
+                                   startPoint: .top, endPoint: .bottom),
+                    lineWidth: 1)
+        )
     }
 }

@@ -9,6 +9,7 @@ enum KeychainTokenProvider {
     enum TokenError: LocalizedError {
         case notFound
         case accessDenied(OSStatus)
+        case interactionRequired
         case parseFailed
 
         var errorDescription: String? {
@@ -17,6 +18,8 @@ enum KeychainTokenProvider {
                 return "No Claude Code login found. Run `claude` in a terminal once and log in."
             case .accessDenied(let status):
                 return "Keychain access denied (status \(status))."
+            case .interactionRequired:
+                return "Reconnect to read the Claude Code token from the keychain."
             case .parseFailed:
                 return "The keychain entry has an unexpected format."
             }
@@ -26,7 +29,32 @@ enum KeychainTokenProvider {
     /// Claude Code verwendete je nach Version unterschiedliche Service-Namen.
     private static let serviceNames = ["Claude Code-credentials", "Claude Code"]
 
-    static func accessToken() throws -> String {
+    /// Serialisiert alle Token-Reads: SecKeychainSetUserInteractionAllowed ist
+    /// PROZESS-GLOBAL — ein nebenläufiger Connect-Klick (allowUI=true) und ein
+    /// Hintergrund-Fetch (allowUI=false) würden sich sonst die Interaktions-
+    /// Erlaubnis gegenseitig verstellen (sporadisch fehlschlagender Connect).
+    private static let readLock = NSLock()
+
+    static func accessToken(allowUI: Bool = true) throws -> String {
+        readLock.lock()
+        defer { readLock.unlock() }
+        return try accessTokenLocked(allowUI: allowUI)
+    }
+
+    private static func accessTokenLocked(allowUI: Bool) throws -> String {
+        // Automatische Hintergrund-Fetches dürfen NIE den ACL-Dialog auslösen:
+        // Claude Codes Token-Refresh setzt die Keychain-Freigabe gelegentlich
+        // zurück — ohne diese Sperre poppt sonst unvermittelt ein Passwort-Dialog
+        // auf (sogar ohne offenes Fenster). Bei gesperrter Interaktion schlägt der
+        // Zugriff mit errSecInteractionNotAllowed fehl; die App bietet dann ein
+        // ruhiges „Reconnect" an. Nur explizite Nutzeraktionen lesen mit UI.
+        if !allowUI {
+            SecKeychainSetUserInteractionAllowed(false)
+        }
+        defer {
+            if !allowUI { SecKeychainSetUserInteractionAllowed(true) }
+        }
+
         // Ein Deny (z. B. errSecAuthFailed) hat Vorrang vor einem NotFound des
         // zweiten Service-Namens — sonst entsteht eine irreführende Meldung.
         var deniedStatus: OSStatus?
@@ -48,9 +76,16 @@ enum KeychainTokenProvider {
                 }
                 return token
             }
-            if status != errSecItemNotFound {
-                deniedStatus = status
+            if status == errSecItemNotFound {
+                continue // anderer Service-Name könnte passen
             }
+            // Irgendein anderer Fehler. Bei unterdrückter UI (automatischer Fetch)
+            // heißt das „der ACL-Dialog wäre nötig" — der genaue Code variiert je
+            // nach Keychain-Typ (-25308 interactionNotAllowed / -25293 authFailed).
+            if !allowUI {
+                throw TokenError.interactionRequired
+            }
+            deniedStatus = status
         }
         if let deniedStatus {
             throw TokenError.accessDenied(deniedStatus)

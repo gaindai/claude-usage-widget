@@ -25,10 +25,18 @@ sensitive.
   held **in memory only**, and used solely as the `Authorization` header for a
   single request to `api.anthropic.com`. It is **never written to disk, never
   logged, and never placed in the snapshot file**.
-- A redirect guard ensures the token is only ever sent to `api.anthropic.com` —
-  it is not forwarded if the endpoint were to redirect elsewhere.
+- A redirect guard pins the token to `https://api.anthropic.com` — it is not
+  forwarded if the endpoint were to redirect to another host **or downgrade to
+  plain http** (on top of ATS, which already forbids cleartext).
 - The keychain access prompts you once ("Always Allow"); the grant is bound to
   the app's signing identity (see *Build & signing* below).
+- **Background refreshes never show keychain dialogs.** Automatic fetches read
+  the token with keychain UI interaction disabled; if macOS would need to ask
+  (e.g. after Claude Code rotated its token and reset the grant), the fetch
+  fails silently and the app surfaces a "Reconnect" button instead. Only an
+  explicit user action (Connect/Reconnect/manual refresh) can trigger the
+  dialog. Token reads are serialized so concurrent fetches cannot interfere
+  with each other's interaction setting.
 
 **Network**
 - Exactly **one** outbound destination: `api.anthropic.com` (HTTPS, ATS
@@ -67,6 +75,12 @@ These are documented design choices, not undiscovered bugs:
   not affiliated with or supported by Anthropic; see the Disclaimer in the
   [README](README.md). It only ever reads usage status — it never modifies your
   account.
+- **Session logs are parsed whole-file in memory.** `~/.claude` JSONL files are
+  read fully (deliberately unmapped — `mmap` of a file truncated by another
+  process would crash). A pathologically large log file would cost memory while
+  it is parsed once; results are cached per file (mtime/size) afterwards. The
+  parser only ever extracts numeric usage fields — file contents never reach
+  the UI, the snapshot, or the network.
 
 ## Out of scope
 

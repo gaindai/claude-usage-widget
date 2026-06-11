@@ -1,4 +1,4 @@
-# Claude Usage — macOS desktop widget for Claude Code
+# Claude Code Usage — macOS desktop widget for Claude Code
 
 A desktop widget that shows your Claude Code usage: the 5-hour window and
 weekly limit (exactly what `/usage` shows in the CLI), plus token consumption
@@ -7,7 +7,7 @@ and activity from your local session logs with a 7-day history.
 Everything stays on your Mac. No accounts, no third-party servers, no manual
 token handling — the widget reuses the login that Claude Code already has.
 
-![Claude Usage widget in small, medium and large sizes](docs/widgets-purple.png)
+![Claude Code Usage widget in small, medium and large sizes](docs/widgets-purple.png)
 
 ## Disclaimer
 
@@ -43,40 +43,54 @@ cd claude-usage-widget
 To **update** later: `git pull && ./install.sh` (it stops the running app and
 reinstalls in place; your settings and keychain grant are preserved).
 
-That's it. The app launches and walks you through three onboarding steps:
+That's it. The app launches and walks you through two onboarding steps —
+it finds your `~/.claude` data automatically and shows first numbers right
+away, no permissions needed:
 
-1. **Local data** — finds your `~/.claude` automatically and shows first
-   numbers right away. No permissions needed.
-2. **Connect limits** (optional) — one click, then macOS asks for keychain
-   access: choose **"Always Allow"**. Skipping is fine; the widget then shows
-   local data only.
-3. **Add the widget** — right-click the desktop → "Edit Widgets" →
-   **Claude Usage** → pick a size. Enable "Launch at login" so the widget
-   stays current.
-
-To change the **accent color**, open the app (launch it from Applications) and
-pick a color under Settings → "Widget accent color". The chosen color applies
-uniformly to the gauges and the token bars; the default is gaind Cyan, and the
-gaind brand colors (Blue, Purple, Magenta) plus Green, Orange and Graphite are
-available. The color is chosen in the app rather than via macOS's widget
-configuration, because that configuration is unreliable for self-built,
-ad-hoc-signed widgets.
+1. **Show your usage limits** — one click, then macOS asks for keychain
+   access: choose **"Always Allow"**. This is the heart of the app: your live
+   5-hour window and weekly limit, like `/usage`, but on the desktop. (If you
+   skip it, the widget still shows your local token usage.)
+2. **Add the widget** — right-click the desktop → "Edit Widgets" →
+   **Claude Code Usage** → pick a size. Enable "Launch at login" so the
+   widget stays current.
 
 <p>
-  <img src="docs/app-window.png" width="430" alt="Claude Usage app window with settings" />
-  <img src="docs/widgets-graphite.png" width="330" alt="Widgets in the Graphite accent color" />
+  <img src="docs/onboarding.png" width="430" alt="Two-step onboarding with live limit rings" />
+  <img src="docs/app-window.png" width="430" alt="Claude Code Usage app window" />
 </p>
 
-The app then runs invisibly in the background (no Dock icon) and refreshes
-every 3 minutes. To open the status window later, just launch the app again
-from Applications.
+## The app window
+
+Launching the app from Applications opens the status window (the app appears
+in the Dock while the window is open and returns to being an invisible
+background agent when you close it):
+
+- **Limits** — two gauge rings for the 5-hour window and the week, with reset
+  countdowns and, when applicable, Opus/Extra-usage chips.
+- **Activity** — tokens today with a day-over-day delta, a 7-day trend line
+  with a token scale and weekday axis, 7/30-day totals, messages and sessions.
+- **Settings** (collapsible) — accent color swatches, "Launch at login",
+  the keychain toggle for limits, and a way back to the onboarding.
+- If no widget is placed on the desktop yet, the window shows a hint with
+  the exact steps — it disappears automatically once a widget is added.
+
+The **accent color** applies uniformly to the app and the widget gauges/bars.
+Picking one of the gaind brand colors (Cyan, Blue, Purple, Magenta) renders
+the full brand gradient in the rings and trend line; Green, Orange and
+Graphite stay single-color. The color is chosen in the app rather than via
+macOS's widget configuration, because that configuration is unreliable for
+self-built, locally signed widgets.
+
+The background app refreshes every 3 minutes and requests widget reloads only
+when displayed values actually change.
 
 ## What the numbers mean
 
 | Display | Source | Notes |
 |---|---|---|
 | 5-hour window / weekly limit (%) | Anthropic usage endpoint (same source as `/usage`) | exact, server-side |
-| Tokens (today / 7 days) | local session logs (`~/.claude/projects`) | **input + output tokens, excluding cache** — the same definition as "Total tokens" in Claude Code's `/usage` statistics, verified empirically against it |
+| Tokens (today / 7 days / 30 days) | local session logs (`~/.claude/projects`) | **input + output tokens, excluding cache** — the same definition as "Total tokens" in Claude Code's `/usage` statistics, verified empirically against it |
 | Messages / sessions | local session logs | deduplicated assistant responses; distinct sessions per day |
 
 Token counts deliberately exclude prompt-cache reads/writes (which dwarf real
@@ -94,6 +108,10 @@ Designed so that you can run it without trusting anyone — including us:
 - **Exactly one network destination:** `api.anthropic.com` (HTTPS, ATS
   enforced, ephemeral session without cookie/cache persistence). No telemetry,
   no analytics, no third-party servers.
+- **Background refreshes never trigger keychain dialogs.** Automatic fetches
+  read the token with UI interaction disabled; if macOS would need to ask
+  (e.g. after Claude Code rotated its token), the app quietly shows a
+  "Reconnect" button instead of popping a password prompt at you.
 - **`~/.claude` is only ever read**, never written.
 - **The widget itself is sandboxed** with a read-only exception scoped to a
   single directory (`~/Library/Application Support/ClaudeUsage/`), where it
@@ -122,19 +140,25 @@ Known, deliberate trade-offs:
   `~/.claude` and the keychain item). Sandboxing it with scoped exceptions is
   on the roadmap.
 
+See [SECURITY.md](SECURITY.md) for the full threat model and how to report
+vulnerabilities.
+
 ## Troubleshooting
 
 - **"Xcode is required"** — install Xcode from the App Store, open it once,
   then `sudo xcode-select -s /Applications/Xcode.app`.
+- **Keychain password prompt** — appears only when you explicitly click
+  *Connect*/*Reconnect*, never from background refreshes. Choose
+  **"Always Allow"** and it won't ask again, including after future updates
+  (the app is signed with a stable local certificate, so the grant survives
+  rebuilds). If you build with a tool other than `install.sh` that
+  ad-hoc-signs, the prompt would return on every build — use `install.sh`.
+- **"Limits paused — reconnect"** in the app — Claude Code rotated its token
+  and macOS reset the keychain grant. Click *Reconnect* once (and
+  "Always Allow"); the rings come back immediately.
 - **Accidentally denied the keychain dialog** — the app stops asking (by
   design, no prompt loops). Open the app → Settings → re-enable
   "Fetch session/weekly limits (keychain)".
-- **Keychain password prompt** — you'll see it once, the first time the app
-  reads the token after a fresh install. Choose **"Always Allow"** and it won't
-  ask again, including after future updates (the app is signed with a stable
-  local certificate, so the grant survives rebuilds). If you build with a tool
-  other than `install.sh` that ad-hoc-signs, the prompt will return on every
-  build — use `install.sh`.
 - **"Token expired" in the app** — run `claude` once in a terminal (Claude
   Code refreshes its own token); the limits recover within minutes.
 - **Widget shows "paused"** — the background app hasn't written data for
@@ -154,20 +178,32 @@ Two targets, generated from `project.yml` via XcodeGen:
   - `UsageCollector` (an actor — serialized, race-free) parses the JSONL
     session logs read-only with per-file mtime/size caching,
   - `RateLimitClient` polls the usage endpoint at most every 180 s with the
-    keychain token,
+    keychain token; a redirect guard pins the auth header to
+    `api.anthropic.com`,
+  - `KeychainTokenProvider` reads the token — with keychain UI suppressed
+    for automatic fetches, so background polling can never spawn dialogs,
   - `SnapshotStore` writes the aggregate snapshot atomically (0600),
   - an App-Nap-resistant `NSBackgroundActivityScheduler` drives the 3-minute
-    refresh cycle and requests widget reloads only when visible values change.
+    refresh cycle and requests widget reloads only when visible values change,
+  - the SwiftUI app windows (`StatusView`, `OnboardingView`) share a small
+    design system (`DesignSystem.swift`: brand-gradient ring gauges, cards,
+    accent bridge) plus a Swift-Charts trend line (`Sparkline.swift`).
 - **ClaudeUsageWidget** — sandboxed widget extension with a read-only
   temporary exception for the snapshot directory. The timeline pre-renders
   future state transitions (stale badge, 5-hour reset) so they appear on time
-  without consuming WidgetKit's reload budget.
+  without consuming WidgetKit's reload budget. The widget deliberately stays
+  dependency-free (no Swift Charts).
+
+> Note: the bundle on disk is named `Claude Usage.app` (stable internal
+> identifiers keep your keychain grant, login item and placed widgets intact
+> across updates); everywhere in the UI the app calls itself
+> **Claude Code Usage**.
 
 ## Uninstall
 
 ```sh
-# 1. Quit and remove the app
-osascript -e 'tell application "Claude Usage" to quit' 2>/dev/null
+# 1. Quit and remove the app (the bundle keeps the internal name)
+pkill -x "Claude Usage" 2>/dev/null
 rm -rf "/Applications/Claude Usage.app"   # or ~/Applications/Claude Usage.app
 # 2. Remove its data and the local signing certificate
 rm -rf ~/Library/Application\ Support/ClaudeUsage

@@ -41,7 +41,9 @@ final class RateLimitClient {
                         willPerformHTTPRedirection response: HTTPURLResponse,
                         newRequest request: URLRequest,
                         completionHandler: @escaping (URLRequest?) -> Void) {
-            if request.url?.host == RateLimitClient.host {
+            // Host UND Scheme prüfen — ein Downgrade auf http würde das Token
+            // im Klartext senden (ATS blockt das zwar, aber Defense-in-Depth).
+            if request.url?.host == RateLimitClient.host, request.url?.scheme == "https" {
                 completionHandler(request)
             } else {
                 completionHandler(nil) // Redirect nicht folgen
@@ -49,11 +51,12 @@ final class RateLimitClient {
         }
     }
 
-    func fetch() async throws -> UsageSnapshot.RateLimits {
+    func fetch(allowUI: Bool = true) async throws -> UsageSnapshot.RateLimits {
         // Keychain-Zugriff abseits des MainActors: SecItemCopyMatching blockiert,
-        // solange der Berechtigungs-Dialog offen ist.
+        // solange der Berechtigungs-Dialog offen ist. allowUI=false (automatische
+        // Fetches) unterdrückt den Dialog komplett — siehe KeychainTokenProvider.
         let token = try await Task.detached(priority: .userInitiated) {
-            try KeychainTokenProvider.accessToken()
+            try KeychainTokenProvider.accessToken(allowUI: allowUI)
         }.value
 
         var request = URLRequest(url: endpoint)

@@ -12,7 +12,7 @@ struct ClaudeUsageApp: App {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let state = AppState()
     private var window: NSWindow?
 
@@ -37,14 +37,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if window == nil {
             let hosting = NSHostingController(rootView: RootView().environmentObject(state))
             let w = NSWindow(contentViewController: hosting)
-            w.title = "Claude Usage"
-            w.styleMask = [.titled, .closable, .miniaturizable]
-            w.setContentSize(NSSize(width: 540, height: 600))
+            w.title = "Claude Code Usage"
+            // Randloses, frei skalierbares Fenster: Inhalt läuft unter die
+            // Titelleiste, der eigene Header übernimmt deren Rolle — nahtloser Canvas.
+            w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+            w.titleVisibility = .hidden
+            w.titlebarAppearsTransparent = true
+            w.isMovableByWindowBackground = true
+            w.contentMinSize = NSSize(width: 460, height: 360)
+            w.setContentSize(NSSize(width: 560, height: 740))
             w.isReleasedWhenClosed = false
+            w.delegate = self
             w.center()
             window = w
         }
+        // Solange ein Fenster offen ist, als reguläre App im Dock erscheinen;
+        // beim Schließen zurück zum unsichtbaren Hintergrund-Agent (LSUIElement).
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        // Zurück in den Agent-Modus: kein Dock-Icon, kein Menü.
+        NSApp.setActivationPolicy(.accessory)
     }
 }

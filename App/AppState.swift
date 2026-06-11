@@ -9,10 +9,19 @@ final class AppState: ObservableObject {
     @Published var snapshot: UsageSnapshot?
     @Published var lastRefresh: Date?
     @Published var rateLimitError: String?
+    /// Ein automatischer Fetch bräuchte den Keychain-Dialog (Claude-Code-
+    /// Token-Refresh hat die Freigabe zurückgesetzt). Statt zu prompten bietet
+    /// die UI ein ruhiges „Reconnect" an.
+    @Published var rateLimitNeedsReconnect = false
     @Published var keychainConnected = false
     @Published var loginItemEnabled = LoginItemManager.isEnabled
     @Published var loginItemNeedsApproval = false
     @Published var localDataAvailable = false
+    /// Liegt mindestens ein Widget auf dem Schreibtisch? Steuert den „Widget
+    /// hinzufügen"-Hinweis im Statusfenster — er verschwindet automatisch, sobald
+    /// eines platziert ist. Default true, damit der Hinweis nicht aufblitzt, bevor
+    /// WidgetKit geantwortet hat.
+    @Published var widgetPlaced = true
 
     // Bewusst @Published + UserDefaults statt @AppStorage: @AppStorage in einem
     // ObservableObject triggert objectWillChange nicht zuverlässig.
@@ -59,6 +68,7 @@ final class AppState: ObservableObject {
         guard !started else { return }
         started = true
         snapshot = SnapshotLocation.read()
+        checkWidgetPlaced()
 
         // Selbstheilung: Ad-hoc-Signaturen ändern sich mit jedem Build, was die
         // Login-Item-Registrierung invalidieren kann — bei gewünschtem Autostart
@@ -90,11 +100,12 @@ final class AppState: ObservableObject {
     /// verweigerter Keychain-Dialog führt sonst zu einem Prompt alle 3 Minuten.
     func connectRateLimits() async {
         do {
-            cachedRateLimits = try await rateLimitClient.fetch()
+            cachedRateLimits = try await rateLimitClient.fetch(allowUI: true)
             lastRateLimitFetch = Date()
             keychainConnected = true
             rateLimitError = nil
             rateLimitsEnabled = true
+            rateLimitNeedsReconnect = false
             await refresh(force: true)
         } catch {
             rateLimitError = error.localizedDescription
@@ -118,6 +129,18 @@ final class AppState: ObservableObject {
         loginItemNeedsApproval = enabled && !loginItemEnabled && LoginItemManager.needsApproval
     }
 
+    /// Fragt WidgetKit, ob mindestens ein Widget dieser App auf dem Schreibtisch
+    /// liegt — steuert den „Widget hinzufügen"-Hinweis im Statusfenster.
+    func checkWidgetPlaced() {
+        WidgetCenter.shared.getCurrentConfigurations { result in
+            Task { @MainActor [weak self] in
+                if case .success(let infos) = result {
+                    self?.widgetPlaced = !infos.isEmpty
+                }
+            }
+        }
+    }
+
     /// Refresh-Läufe sind serialisiert: ein laufender Lauf wird abgewartet;
     /// nur force startet danach einen weiteren (z. B. Refresh-Button).
     func refresh(force: Bool = false) async {
@@ -133,6 +156,7 @@ final class AppState: ObservableObject {
 
     private func performRefresh(force: Bool) async {
         localDataAvailable = collector.localDataAvailable
+        checkWidgetPlaced()
         let local = await collector.collect()
 
         if rateLimitsEnabled {
@@ -142,17 +166,26 @@ final class AppState: ObservableObject {
             if due {
                 lastRateLimitFetch = Date()
                 do {
-                    cachedRateLimits = try await rateLimitClient.fetch()
+                    cachedRateLimits = try await rateLimitClient.fetch(allowUI: force)
                     keychainConnected = true
                     rateLimitError = nil
+                    rateLimitNeedsReconnect = false
                 } catch let error as KeychainTokenProvider.TokenError {
-                    rateLimitError = error.localizedDescription
-                    if case .accessDenied = error {
-                        // Zugriff verweigert: Abfrage deaktivieren statt alle
+                    switch error {
+                    case .interactionRequired:
+                        // Nur automatische Fetches (allowUI=false) landen hier:
+                        // die Freigabe wurde zurückgesetzt. Still zurückziehen und
+                        // ein ruhiges „Reconnect" anbieten — KEIN Überraschungs-Dialog.
+                        rateLimitNeedsReconnect = true
+                    case .accessDenied:
+                        // Aktiv verweigert: Abfrage deaktivieren statt alle
                         // 3 Minuten erneut zu prompten; Re-Aktivierung über
                         // Einstellungen/Onboarding.
+                        rateLimitError = error.localizedDescription
                         rateLimitsEnabled = false
                         keychainConnected = false
+                    default:
+                        rateLimitError = error.localizedDescription
                     }
                 } catch {
                     rateLimitError = error.localizedDescription

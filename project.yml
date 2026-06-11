@@ -35,7 +35,7 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: Claude Usage
+        CFBundleDisplayName: Claude Code Usage
         LSUIElement: true
         LSApplicationCategoryType: public.app-category.developer-tools
         NSHumanReadableCopyright: "© 2026 gaind"
@@ -56,7 +56,7 @@ targets:
     info:
       path: Widget/Info.plist
       properties:
-        CFBundleDisplayName: Claude Usage
+        CFBundleDisplayName: Claude Code Usage
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
