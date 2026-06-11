@@ -82,6 +82,8 @@ Graphite stay single-color. The color is chosen in the app rather than via
 macOS's widget configuration, because that configuration is unreliable for
 self-built, locally signed widgets.
 
+<img src="docs/widgets-graphite.png" width="430" alt="Widgets in the single-color Graphite accent" />
+
 The background app refreshes every 3 minutes and requests widget reloads only
 when displayed values actually change.
 
