@@ -7,7 +7,7 @@ and activity from your local session logs with a 7-day history.
 Everything stays on your Mac. No accounts, no third-party servers, no manual
 token handling — the widget reuses the login that Claude Code already has.
 
-![Claude Code Usage widget in small, medium and large sizes](docs/widgets-magenta.png)
+<img src="docs/widgets-magenta.png" width="520" alt="Claude Code Usage widget in small, medium and large sizes" />
 
 ## Disclaimer
 
@@ -56,8 +56,8 @@ away, no permissions needed:
    widget stays current.
 
 <p>
-  <img src="docs/onboarding.png" width="430" alt="Two-step onboarding with live limit rings" />
-  <img src="docs/app-window.png" width="430" alt="Claude Code Usage app window" />
+  <img src="docs/onboarding.png" width="400" alt="Two-step onboarding with live limit rings" />
+  <img src="docs/app-window.png" width="400" alt="Claude Code Usage app window" />
 </p>
 
 ## The app window
@@ -82,7 +82,7 @@ Graphite stay single-color. The color is chosen in the app rather than via
 macOS's widget configuration, because that configuration is unreliable for
 self-built, locally signed widgets.
 
-<img src="docs/widgets-graphite.png" width="430" alt="Widgets in the single-color Graphite accent" />
+<img src="docs/widgets-graphite.png" width="400" alt="Widgets in the single-color Graphite accent" />
 
 The background app refreshes every 3 minutes and requests widget reloads only
 when displayed values actually change.
