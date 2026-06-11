@@ -194,9 +194,10 @@ private struct MediumView: View {
                 LimitGauge(title: "5 h", percent: rl.fiveHourPercent, accent: accent)
                 LimitGauge(title: "Week", percent: rl.sevenDayPercent, accent: accent)
             }
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 row(label: "Tokens today", value: Format.tokens(snapshot.local.today?.tokens ?? 0))
                 row(label: "Tokens 7 days", value: Format.tokens(snapshot.local.weekTokens))
+                row(label: "Tokens 30 days", value: Format.tokens(snapshot.local.monthTokens))
                 // Reset-Countdown nur solange er in der Zukunft liegt — ein
                 // Timeline-Entry exakt zum Reset blendet die Zeile aus.
                 if let rl = snapshot.rateLimits, let reset = rl.fiveHourResetsAt,
@@ -266,7 +267,7 @@ private struct LargeView: View {
 
             Divider()
 
-            HStack(spacing: 20) {
+            HStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(Format.tokens(snapshot.local.today?.tokens ?? 0))
                         .font(.system(.body, design: .rounded).bold().monospacedDigit())
@@ -278,6 +279,11 @@ private struct LargeView: View {
                     Text("Tokens 7 days").font(.caption2).foregroundStyle(.secondary)
                 }
                 VStack(alignment: .leading, spacing: 0) {
+                    Text(Format.tokens(snapshot.local.monthTokens))
+                        .font(.system(.body, design: .rounded).bold().monospacedDigit())
+                    Text("Tokens 30 days").font(.caption2).foregroundStyle(.secondary)
+                }
+                VStack(alignment: .leading, spacing: 0) {
                     Text("\(snapshot.local.today?.sessionCount ?? 0)")
                         .font(.system(.body, design: .rounded).bold().monospacedDigit())
                     Text("Sessions today").font(.caption2).foregroundStyle(.secondary)
@@ -285,7 +291,8 @@ private struct LargeView: View {
                 Spacer()
             }
 
-            DayBars(days: snapshot.local.days, accent: accent)
+            // Balkendiagramm zeigt die letzten 7 Tage (auch wenn 30 gesammelt werden).
+            DayBars(days: snapshot.local.lastWeek, accent: accent)
                 .frame(maxHeight: .infinity)
         }
     }
@@ -332,10 +339,17 @@ private struct DayBars: View {
 
 extension UsageSnapshot {
     static var preview: UsageSnapshot {
-        let days = (1...7).map { i in
-            DayStat(date: "2026-06-0\(i)", inputTokens: 20_000 * i,
-                    outputTokens: 400_000 * i, cacheReadTokens: 60_000_000,
-                    cacheWriteTokens: 2_000_000, messageCount: 300, sessionCount: 5)
+        let cal = Calendar.current
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.dateFormat = "yyyy-MM-dd"
+        let today = cal.startOfDay(for: Date())
+        let days: [DayStat] = (0..<30).reversed().map { offset in
+            let date = cal.date(byAdding: .day, value: -offset, to: today) ?? today
+            let scale = 1 + (offset % 7)
+            return DayStat(date: fmt.string(from: date), inputTokens: 20_000 * scale,
+                           outputTokens: 400_000 * scale, cacheReadTokens: 60_000_000,
+                           cacheWriteTokens: 2_000_000, messageCount: 300, sessionCount: 5)
         }
         return UsageSnapshot(
             generatedAt: Date(),

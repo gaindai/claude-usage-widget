@@ -33,7 +33,7 @@ actor UsageCollector {
         return FileManager.default.fileExists(atPath: projects)
     }
 
-    func collect(daysBack: Int = 7) -> UsageSnapshot.LocalUsage {
+    func collect(daysBack: Int = 30) -> UsageSnapshot.LocalUsage {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         guard let cutoff = calendar.date(byAdding: .day, value: -daysBack, to: today) else {

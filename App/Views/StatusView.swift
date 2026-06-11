@@ -56,9 +56,10 @@ struct StatusView: View {
 
             if let local = state.snapshot?.local {
                 GroupBox("Local (from session logs)") {
-                    HStack(spacing: 28) {
+                    HStack(spacing: 24) {
                         Metric(label: "Tokens today", value: Format.tokens(local.today?.tokens ?? 0))
                         Metric(label: "Tokens 7 days", value: Format.tokens(local.weekTokens))
+                        Metric(label: "Tokens 30 days", value: Format.tokens(local.monthTokens))
                         Metric(label: "Messages today", value: "\(local.today?.messageCount ?? 0)")
                         Metric(label: "Sessions today", value: "\(local.today?.sessionCount ?? 0)")
                         Spacer()

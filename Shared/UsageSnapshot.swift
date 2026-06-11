@@ -23,12 +23,16 @@ struct UsageSnapshot: Codable {
     }
 
     struct LocalUsage: Codable {
-        /// Letzte 7 Tage, älteste zuerst, letzter Eintrag = heute.
+        /// Bis zu 30 Tage, älteste zuerst, letzter Eintrag = heute.
         var days: [DayStat]
 
         var today: DayStat? { days.last }
-        var weekTokens: Int { days.reduce(0) { $0 + $1.tokens } }
-        var weekMessages: Int { days.reduce(0) { $0 + $1.messageCount } }
+        /// Letzte 7 bzw. 30 Tage — gleiche Aufteilung wie die /usage-Tabs.
+        var weekTokens: Int { days.suffix(7).reduce(0) { $0 + $1.tokens } }
+        var monthTokens: Int { days.reduce(0) { $0 + $1.tokens } }
+        var weekMessages: Int { days.suffix(7).reduce(0) { $0 + $1.messageCount } }
+        /// Die letzten 7 Tage fürs Balkendiagramm.
+        var lastWeek: [DayStat] { Array(days.suffix(7)) }
     }
 
     struct DayStat: Codable {
