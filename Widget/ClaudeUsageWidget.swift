@@ -281,11 +281,16 @@ private struct LargeView: View {
     }
 
     /// Gleich breite Statistik-Spalte — verteilt die Metriken symmetrisch.
+    /// Labels einzeilig (skalieren minimal statt umzubrechen), damit alle
+    /// Spalten gleich hoch bleiben.
     private func statColumn(_ value: String, _ label: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(value)
                 .font(.system(.body, design: .rounded).bold().monospacedDigit())
-            Text(label).font(.caption2).foregroundStyle(.secondary)
+                .lineLimit(1).minimumScaleFactor(0.7)
+            Text(label)
+                .font(.caption2).foregroundStyle(.secondary)
+                .lineLimit(1).minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
