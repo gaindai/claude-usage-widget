@@ -7,7 +7,7 @@ and activity from your local session logs with a 7-day history.
 Everything stays on your Mac. No accounts, no third-party servers, no manual
 token handling — the widget reuses the login that Claude Code already has.
 
-![Claude Code Usage widget in small, medium and large sizes](docs/widgets-purple.png)
+![Claude Code Usage widget in small, medium and large sizes](docs/widgets-magenta.png)
 
 ## Disclaimer
 
