@@ -245,6 +245,7 @@ private struct LargeView: View {
                 HStack(spacing: 24) {
                     LimitGauge(title: "5 h", percent: rl.fiveHourPercent, accent: accent)
                     LimitGauge(title: "Week", percent: rl.sevenDayPercent, accent: accent)
+                    Spacer()
                     VStack(alignment: .leading, spacing: 4) {
                         if let reset = rl.fiveHourResetsAt, reset > now {
                             VStack(alignment: .leading, spacing: 0) {
@@ -261,40 +262,32 @@ private struct LargeView: View {
                             }
                         }
                     }
-                    Spacer()
                 }
             }
 
             Divider()
 
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(Format.tokens(snapshot.local.today?.tokens ?? 0))
-                        .font(.system(.body, design: .rounded).bold().monospacedDigit())
-                    Text("Tokens today").font(.caption2).foregroundStyle(.secondary)
-                }
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(Format.tokens(snapshot.local.weekTokens))
-                        .font(.system(.body, design: .rounded).bold().monospacedDigit())
-                    Text("Tokens 7 days").font(.caption2).foregroundStyle(.secondary)
-                }
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(Format.tokens(snapshot.local.monthTokens))
-                        .font(.system(.body, design: .rounded).bold().monospacedDigit())
-                    Text("Tokens 30 days").font(.caption2).foregroundStyle(.secondary)
-                }
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("\(snapshot.local.today?.sessionCount ?? 0)")
-                        .font(.system(.body, design: .rounded).bold().monospacedDigit())
-                    Text("Sessions today").font(.caption2).foregroundStyle(.secondary)
-                }
-                Spacer()
+            HStack(spacing: 8) {
+                statColumn(Format.tokens(snapshot.local.today?.tokens ?? 0), "Tokens today")
+                statColumn(Format.tokens(snapshot.local.weekTokens), "Tokens 7 days")
+                statColumn(Format.tokens(snapshot.local.monthTokens), "Tokens 30 days")
+                statColumn("\(snapshot.local.today?.sessionCount ?? 0)", "Sessions today")
             }
 
             // Balkendiagramm zeigt die letzten 7 Tage (auch wenn 30 gesammelt werden).
             DayBars(days: snapshot.local.lastWeek, accent: accent)
                 .frame(maxHeight: .infinity)
         }
+    }
+
+    /// Gleich breite Statistik-Spalte — verteilt die Metriken symmetrisch.
+    private func statColumn(_ value: String, _ label: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(value)
+                .font(.system(.body, design: .rounded).bold().monospacedDigit())
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
