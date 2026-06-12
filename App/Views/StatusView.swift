@@ -24,7 +24,7 @@ struct StatusView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.xl) {
                     header
-                    if !state.widgetPlaced { widgetCTA }
+                    if state.widgetPlaced == false { widgetCTA }
                     limitsSection
                     activitySection
                     settingsSection

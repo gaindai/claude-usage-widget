@@ -109,8 +109,8 @@ struct OnboardingView: View {
     // MARK: Step 1 — limits (the point)
 
     private var stepLimits: some View {
-        StepBox(done: state.keychainConnected, accent: state.accent,
-                title: "1 · Show your usage limits") {
+        StepBox(number: 1, done: state.keychainConnected, accent: state.accent,
+                title: "Show your usage limits") {
             VStack(spacing: DS.Spacing.s) {
                 Text("The whole point: your live 5-hour window and weekly limit on the desktop, just like `/usage`. To do that the app reads the Claude Code token from the keychain — it is only ever sent to api.anthropic.com for this request and never stored or logged.")
                     .multilineTextAlignment(.center)
@@ -159,8 +159,8 @@ struct OnboardingView: View {
     // MARK: Step 2 — widget + autostart
 
     private var stepWidget: some View {
-        StepBox(done: state.loginItemEnabled, accent: state.accent,
-                title: "2 · Add the widget & keep it current") {
+        StepBox(number: 2, done: state.loginItemEnabled, accent: state.accent,
+                title: "Add the widget & keep it current") {
             VStack(spacing: DS.Spacing.s) {
                 Text("Right-click the desktop → “Edit Widgets” → search for **Claude Code Usage** → pick a size and place it.")
                     .multilineTextAlignment(.center)
@@ -192,6 +192,7 @@ struct OnboardingView: View {
 }
 
 private struct StepBox<Content: View>: View {
+    let number: Int
     let done: Bool
     let accent: WidgetAccent
     let title: String
@@ -200,9 +201,7 @@ private struct StepBox<Content: View>: View {
     var body: some View {
         VStack(spacing: DS.Spacing.m) {
             HStack(spacing: DS.Spacing.s) {
-                Image(systemName: done ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(done ? AnyShapeStyle(accent.color) : AnyShapeStyle(Color.secondary))
-                    .imageScale(.large)
+                stepIndicator
                 Text(title).font(.headline)
             }
             .frame(maxWidth: .infinity)
@@ -219,5 +218,24 @@ private struct StepBox<Content: View>: View {
                                    startPoint: .top, endPoint: .bottom),
                     lineWidth: 1)
         )
+    }
+
+    // Reine Status-Anzeige, KEIN Bedienelement: die Schrittnummer wird bei
+    // Erledigung zum Haken. Ein gefüllter Nummern-Disc liest sich klar als
+    // „Schritt N", anders als ein leeres `circle`, das wie eine anklickbare
+    // Checkbox wirkt.
+    @ViewBuilder
+    private var stepIndicator: some View {
+        if done {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(accent.color)
+                .imageScale(.large)
+        } else {
+            Text("\(number)")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(Color.secondary.opacity(0.15)))
+        }
     }
 }

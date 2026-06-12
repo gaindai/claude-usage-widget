@@ -19,9 +19,12 @@ final class AppState: ObservableObject {
     @Published var localDataAvailable = false
     /// Liegt mindestens ein Widget auf dem Schreibtisch? Steuert den „Widget
     /// hinzufügen"-Hinweis im Statusfenster — er verschwindet automatisch, sobald
-    /// eines platziert ist. Default true, damit der Hinweis nicht aufblitzt, bevor
-    /// WidgetKit geantwortet hat.
-    @Published var widgetPlaced = true
+    /// eines platziert ist. Tri-State: nil = noch nicht beantwortet (Hinweis
+    /// blitzt nicht auf), true = liegt, false = liegt nicht. Der Hinweis erscheint
+    /// NUR bei false — auch wenn der WidgetKit-Query fehlschlägt (frische
+    /// Installation: Extension ist WidgetKit noch unbekannt → .failure), sonst
+    /// käme der Hinweis nie.
+    @Published var widgetPlaced: Bool?
 
     // Bewusst @Published + UserDefaults statt @AppStorage: @AppStorage in einem
     // ObservableObject triggert objectWillChange nicht zuverlässig.
@@ -134,8 +137,14 @@ final class AppState: ObservableObject {
     func checkWidgetPlaced() {
         WidgetCenter.shared.getCurrentConfigurations { result in
             Task { @MainActor [weak self] in
-                if case .success(let infos) = result {
+                switch result {
+                case .success(let infos):
                     self?.widgetPlaced = !infos.isEmpty
+                case .failure:
+                    // Query fehlgeschlagen (z. B. Extension noch nicht bei
+                    // WidgetKit registriert) → wie „kein Widget" behandeln und
+                    // nudgen, statt den Hinweis stumm zu verschlucken.
+                    self?.widgetPlaced = false
                 }
             }
         }
