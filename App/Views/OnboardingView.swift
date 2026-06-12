@@ -93,7 +93,7 @@ struct OnboardingView: View {
             VStack(spacing: DS.Spacing.s) {
                 HStack(spacing: DS.Spacing.xs) {
                     Image(systemName: "moon.zzz").foregroundStyle(.secondary)
-                    Text("No ~/.claude data yet — run Claude Code once.")
+                    Text("No local Claude Code data yet — run Claude Code once.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }

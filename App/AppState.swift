@@ -40,6 +40,7 @@ final class AppState: ObservableObject {
 
     private let collector = UsageCollector()
     private let rateLimitClient = RateLimitClient()
+    private var pace = UsagePace()
     private var scheduler: NSBackgroundActivityScheduler?
     private var lastRateLimitFetch: Date = .distantPast
     private var cachedRateLimits: UsageSnapshot.RateLimits?
@@ -103,7 +104,7 @@ final class AppState: ObservableObject {
     /// verweigerter Keychain-Dialog führt sonst zu einem Prompt alle 3 Minuten.
     func connectRateLimits() async {
         do {
-            cachedRateLimits = try await rateLimitClient.fetch(allowUI: true)
+            cachedRateLimits = withProjection(try await rateLimitClient.fetch(allowUI: true))
             lastRateLimitFetch = Date()
             keychainConnected = true
             rateLimitError = nil
@@ -120,9 +121,20 @@ final class AppState: ObservableObject {
     func disconnectRateLimits() {
         rateLimitsEnabled = false
         cachedRateLimits = nil
+        pace = UsagePace()
         keychainConnected = false
         rateLimitError = nil
         Task { await refresh(force: true) }
+    }
+
+    /// Frische Limits in die Tempo-Historie aufnehmen und mit der Hochrechnung
+    /// aufs Reset-Ende anreichern — einziger Ort, an dem Fetch-Ergebnisse in
+    /// den Cache wandern.
+    private func withProjection(_ limits: UsageSnapshot.RateLimits) -> UsageSnapshot.RateLimits {
+        var limits = limits
+        pace.record(percent: limits.fiveHourPercent, at: limits.fetchedAt)
+        limits.fiveHourProjectedPercent = pace.projection(to: limits.fiveHourResetsAt)
+        return limits
     }
 
     func setLoginItem(_ enabled: Bool) {
@@ -175,7 +187,7 @@ final class AppState: ObservableObject {
             if due {
                 lastRateLimitFetch = Date()
                 do {
-                    cachedRateLimits = try await rateLimitClient.fetch(allowUI: force)
+                    cachedRateLimits = withProjection(try await rateLimitClient.fetch(allowUI: force))
                     keychainConnected = true
                     rateLimitError = nil
                     rateLimitNeedsReconnect = false
@@ -236,6 +248,7 @@ final class AppState: ObservableObject {
         if let rl = s.rateLimits {
             parts.append("\(Int(rl.fiveHourPercent.rounded()))|\(Int(rl.sevenDayPercent.rounded()))")
             parts.append(rl.fiveHourResetsAt.map { String(Int($0.timeIntervalSince1970)) } ?? "-")
+            parts.append(rl.fiveHourProjectedPercent.map { String(Int($0.rounded())) } ?? "-")
             parts.append(rl.extraUsagePercent.map { String(Int($0.rounded())) } ?? "-")
         } else {
             parts.append("nolimits")

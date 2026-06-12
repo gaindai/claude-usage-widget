@@ -44,13 +44,14 @@ sensitive.
 - No telemetry, no analytics, no third-party servers, no auto-update channel.
 
 **Filesystem**
-- `~/.claude` (your Claude Code session logs) is **read-only, never written**.
+- Your Claude Code session logs (`~/.claude` and `~/.config/claude`, or the
+  directories named in `CLAUDE_CONFIG_DIR`) are **read-only, never written**.
 - The app writes one file it owns: an aggregate snapshot at
   `~/Library/Application Support/ClaudeUsage/snapshot.json` (mode `0600`),
   containing **numbers only** — token counts, percentages, session counts —
   never prompts, transcripts, file contents, or tokens.
 - The **widget** is sandboxed with a read-only exception scoped to that single
-  directory. It cannot read `~/.claude`, the keychain, or anything else.
+  directory. It cannot read the session logs, the keychain, or anything else.
 
 **Build & signing**
 - Distributed as **source only**; you build it yourself. No prebuilt binaries.
@@ -66,8 +67,9 @@ sensitive.
 
 These are documented design choices, not undiscovered bugs:
 
-- **The main background app is not sandboxed.** It needs read access to
-  `~/.claude` and the keychain item, which the App Sandbox would block.
+- **The main background app is not sandboxed.** It needs read access to the
+  Claude Code data directories and the keychain item, which the App Sandbox
+  would block.
   Sandboxing it with scoped exceptions is on the roadmap. The widget *is*
   sandboxed.
 - **It calls an undocumented Anthropic endpoint** (`/api/oauth/usage`, the same
@@ -75,7 +77,7 @@ These are documented design choices, not undiscovered bugs:
   not affiliated with or supported by Anthropic; see the Disclaimer in the
   [README](README.md). It only ever reads usage status — it never modifies your
   account.
-- **Session logs are parsed whole-file in memory.** `~/.claude` JSONL files are
+- **Session logs are parsed whole-file in memory.** The JSONL session logs are
   read fully (deliberately unmapped — `mmap` of a file truncated by another
   process would crash). A pathologically large log file would cost memory while
   it is parsed once; results are cached per file (mtime/size) afterwards. The
@@ -90,7 +92,7 @@ The following are not considered vulnerabilities in this project:
   disclosed).
 - The main app being unsandboxed (documented above).
 - Issues that require an attacker who already has local access to your user
-  account (at that point your keychain and `~/.claude` are already exposed
+  account (at that point your keychain and session logs are already exposed
   regardless of this app).
 - The self-signed certificate not being trusted by Gatekeeper (expected for a
   locally built, ad-hoc-distributed app).

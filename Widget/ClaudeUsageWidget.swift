@@ -209,6 +209,12 @@ private struct MediumView: View {
                         Text(reset, style: .relative)
                             .font(.caption2.monospacedDigit())
                             .foregroundStyle(.secondary)
+                        // Hochrechnung aufs Fensterende, im Kontext der Reset-Zeile.
+                        if let projected = rl.notableFiveHourProjection {
+                            Text("· ≈ \(Format.percent(projected))")
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 if isStale { StaleBadge() }
@@ -252,6 +258,13 @@ private struct LargeView: View {
                                 Text(reset, style: .relative)
                                     .font(.caption.monospacedDigit().bold())
                                 Text("until 5-hour reset").font(.caption2).foregroundStyle(.secondary)
+                            }
+                            if let projected = rl.notableFiveHourProjection {
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text("≈ \(Format.percent(projected))")
+                                        .font(.caption.monospacedDigit().bold())
+                                    Text("by reset at this pace").font(.caption2).foregroundStyle(.secondary)
+                                }
                             }
                         }
                         if rl.extraUsageEnabled, let extra = rl.extraUsagePercent {
@@ -353,6 +366,7 @@ extension UsageSnapshot {
             generatedAt: Date(),
             rateLimits: RateLimits(
                 fiveHourPercent: 35, fiveHourResetsAt: Date().addingTimeInterval(3600),
+                fiveHourProjectedPercent: 52,
                 sevenDayPercent: 43, sevenDayResetsAt: Date().addingTimeInterval(86_400),
                 sevenDayOpusPercent: nil, sevenDaySonnetPercent: 0,
                 extraUsageEnabled: true, extraUsagePercent: 9.6,

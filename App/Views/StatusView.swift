@@ -122,7 +122,9 @@ struct StatusView: View {
                     VStack(spacing: DS.Spacing.l) {
                         HStack(alignment: .top, spacing: DS.Spacing.xxl + DS.Spacing.m) {
                             ring(value: rl.fiveHourPercent, label: "5 H",
-                                 reset: rl.fiveHourResetsAt, diameter: 104, lineWidth: 11)
+                                 reset: rl.fiveHourResetsAt,
+                                 projection: rl.notableFiveHourProjection,
+                                 diameter: 104, lineWidth: 11)
                             ring(value: rl.sevenDayPercent, label: "Week",
                                  reset: rl.sevenDayResetsAt, diameter: 104, lineWidth: 11)
                         }
@@ -183,6 +185,7 @@ struct StatusView: View {
     }
 
     private func ring(value: Double, label: String, reset: Date?,
+                      projection: Double? = nil,
                       diameter: CGFloat, lineWidth: CGFloat) -> some View {
         VStack(spacing: DS.Spacing.s) {
             RingGauge(value: value, label: label, accent: state.accent,
@@ -191,6 +194,13 @@ struct StatusView: View {
                 (Text("resets ") + Text(reset, style: .relative))
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)
+                // Hochrechnung aufs Fensterende — bei drohendem Limit in der
+                // Warnfarbe, damit der Blick hängen bleibt.
+                if let projection {
+                    Text("≈ \(Format.percent(projection)) by reset")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(projection >= 99.5 ? DS.danger : Color.secondary)
+                }
             }
         }
     }
@@ -437,7 +447,7 @@ struct StatusView: View {
     private var footer: some View {
         VStack(spacing: DS.Spacing.xs) {
             Divider().opacity(0.5)
-            Text("Read-only on ~/.claude · token stays in the keychain · only network call: api.anthropic.com")
+            Text("Read-only on local Claude Code data · token stays in the keychain · only network call: api.anthropic.com")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

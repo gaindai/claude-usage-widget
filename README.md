@@ -44,8 +44,9 @@ To **update** later: `git pull && ./install.sh` (it stops the running app and
 reinstalls in place; your settings and keychain grant are preserved).
 
 That's it. The app launches and walks you through two onboarding steps —
-it finds your `~/.claude` data automatically and shows first numbers right
-away, no permissions needed:
+it finds your Claude Code data automatically (`~/.claude` and
+`~/.config/claude`; a `CLAUDE_CONFIG_DIR` override is respected) and shows
+first numbers right away, no permissions needed:
 
 1. **Show your usage limits** — one click, then macOS asks for keychain
    access: choose **"Always Allow"**. This is the heart of the app: your live
@@ -67,7 +68,8 @@ in the Dock while the window is open and returns to being an invisible
 background agent when you close it):
 
 - **Limits** — two gauge rings for the 5-hour window and the week, with reset
-  countdowns and, when applicable, Opus/Extra-usage chips.
+  countdowns, a pace projection ("≈ X % by reset") once rising usage has been
+  observed for a few minutes, and, when applicable, Opus/Extra-usage chips.
 - **Activity** — tokens today with a day-over-day delta, a 7-day trend line
   with a token scale and weekday axis, 7/30-day totals, messages and sessions.
 - **Settings** (collapsible) — accent color swatches, "Launch at login",
@@ -92,8 +94,9 @@ when displayed values actually change.
 | Display | Source | Notes |
 |---|---|---|
 | 5-hour window / weekly limit (%) | Anthropic usage endpoint (same source as `/usage`) | exact, server-side |
-| Tokens (today / 7 days / 30 days) | local session logs (`~/.claude/projects`) | **input + output tokens, excluding cache** — the same definition as "Total tokens" in Claude Code's `/usage` statistics, verified empirically against it |
+| Tokens (today / 7 days / 30 days) | local session logs (`projects/` under `~/.claude` or `~/.config/claude`) | **input + output tokens, excluding cache** — the same definition as "Total tokens" in Claude Code's `/usage` statistics, verified empirically against it |
 | Messages / sessions | local session logs | deduplicated assistant responses; distinct sessions per day |
+| ≈ % by reset | computed locally from successive limit readings | linear projection of the 5-hour window onto its reset time, capped at 100 %; shown only while usage is actually rising |
 
 Token counts deliberately exclude prompt-cache reads/writes (which dwarf real
 usage by ~50×) and sub-agent sidechains, so the widget matches the number you
@@ -114,7 +117,8 @@ Designed so that you can run it without trusting anyone — including us:
   read the token with UI interaction disabled; if macOS would need to ask
   (e.g. after Claude Code rotated its token), the app quietly shows a
   "Reconnect" button instead of popping a password prompt at you.
-- **`~/.claude` is only ever read**, never written.
+- **Your Claude Code data is only ever read**, never written (`~/.claude` and
+  `~/.config/claude`).
 - **The widget itself is sandboxed** with a read-only exception scoped to a
   single directory (`~/Library/Application Support/ClaudeUsage/`), where it
   reads the aggregate snapshot (`snapshot.json`, mode 0600) — numbers only,
@@ -138,9 +142,9 @@ Known, deliberate trade-offs:
   Anthropic. The request identifies itself with a `claude-code` user agent,
   which the community-established integrations use. If the endpoint changes,
   the widget degrades gracefully to local data until this repo catches up.
-- The background app itself is not sandboxed (it needs read access to
-  `~/.claude` and the keychain item). Sandboxing it with scoped exceptions is
-  on the roadmap.
+- The background app itself is not sandboxed (it needs read access to the
+  Claude Code data directories and the keychain item). Sandboxing it with
+  scoped exceptions is on the roadmap.
 
 See [SECURITY.md](SECURITY.md) for the full threat model and how to report
 vulnerabilities.

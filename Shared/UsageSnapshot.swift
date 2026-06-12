@@ -13,6 +13,12 @@ struct UsageSnapshot: Codable {
     struct RateLimits: Codable {
         var fiveHourPercent: Double
         var fiveHourResetsAt: Date?
+        /// Hochrechnung, wo das 5-h-Fenster beim Reset landet, wenn das Tempo
+        /// der letzten Messungen anhält (auf 100 gekappt). nil, solange die
+        /// Datenlage zu dünn ist oder die Auslastung nicht steigt — die App
+        /// berechnet den Wert, das Widget zeigt ihn nur an. Default nil, damit
+        /// ältere Snapshots ohne das Feld weiterhin dekodieren.
+        var fiveHourProjectedPercent: Double? = nil
         var sevenDayPercent: Double
         var sevenDayResetsAt: Date?
         var sevenDayOpusPercent: Double?
@@ -20,6 +26,15 @@ struct UsageSnapshot: Codable {
         var extraUsageEnabled: Bool
         var extraUsagePercent: Double?
         var fetchedAt: Date
+
+        /// Hochrechnung nur anzeigen, wenn sie sich sichtbar vom Ist-Wert
+        /// abhebt — „≈ 84 % bei aktuell 84 %" wäre Rauschen. Gemeinsame Regel
+        /// für App und Widget.
+        var notableFiveHourProjection: Double? {
+            guard let projected = fiveHourProjectedPercent,
+                  projected - fiveHourPercent >= 1 else { return nil }
+            return projected
+        }
     }
 
     struct LocalUsage: Codable {

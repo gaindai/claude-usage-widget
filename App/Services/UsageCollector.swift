@@ -1,19 +1,20 @@
 import Foundation
 
-/// Liest ~/.claude/projects/**/*.jsonl ausschließlich lesend und aggregiert
-/// Tokens und Aktivität der letzten 7 Tage.
+/// Liest die JSONL-Sitzungsprotokolle von Claude Code ausschließlich lesend
+/// und aggregiert Tokens und Aktivität der letzten Tage.
 ///
 /// Zählregeln (empirisch gegen Claude Codes eigene /usage-Statistik verifiziert):
 /// - Tokens = input + output pro Assistant-Zeile, OHNE Dedupe, OHNE
 ///   Sidechain-Nachrichten (Subagenten) — entspricht „Total tokens" in /usage.
-/// - Nachrichten = deduplizierte Assistant-Antworten (message.id + requestId)
-///   — entspricht der Aktivitätsstatistik der CLI.
+/// - Nachrichten = Assistant-Antworten, dedupliziert über message.id allein:
+///   Streaming schreibt mehrere Zeilen pro Antwort, und Subagenten-Protokolle
+///   spiegeln Eltern-Nachrichten unter NEUER Request-ID — eine zusammengesetzte
+///   ID (message.id + requestId) würde solche Spiegelungen doppelt zählen.
 /// - Cache-Tokens werden mitgeführt (Snapshot), aber nicht als „Tokens" angezeigt.
 ///
 /// Als actor: collect()-Aufrufe sind serialisiert und laufen automatisch
 /// abseits des MainActors — kein Data-Race auf fileCache möglich.
 actor UsageCollector {
-    private let claudeDir = SnapshotLocation.realHome.appendingPathComponent(".claude")
     private var fileCache: [String: (mtime: Date, size: Int64, entries: [Entry])] = [:]
 
     struct Entry {
@@ -28,9 +29,46 @@ actor UsageCollector {
     }
 
     nonisolated var localDataAvailable: Bool {
-        let projects = SnapshotLocation.realHome
-            .appendingPathComponent(".claude/projects").path
-        return FileManager.default.fileExists(atPath: projects)
+        Self.projectDirectories().contains {
+            FileManager.default.fileExists(atPath: $0.path)
+        }
+    }
+
+    /// Alle Orte, an denen Claude Code Sitzungsprotokolle ablegen kann
+    /// (jeweils das projects-Unterverzeichnis). `CLAUDE_CONFIG_DIR` übersteuert
+    /// — kommagetrennt, mit ~-Expansion, wie Claude Code selbst es versteht.
+    /// Ohne Override gelten beide Standardorte zugleich, denn je nach
+    /// Installation liegt das Verzeichnis unter ~/.claude oder im
+    /// XDG-Config-Pfad; bei jedem collect() frisch geprüft, damit eine
+    /// Erstinstallation von Claude Code zur Laufzeit erkannt wird.
+    private static func projectDirectories() -> [URL] {
+        let env = ProcessInfo.processInfo.environment
+        let home = SnapshotLocation.realHome
+        var roots: [URL] = []
+        if let configured = env["CLAUDE_CONFIG_DIR"] {
+            roots = configured.split(separator: ",").compactMap { entry in
+                let path = entry.trimmingCharacters(in: .whitespaces)
+                guard !path.isEmpty else { return nil }
+                if path == "~" { return home }
+                if path.hasPrefix("~/") {
+                    return home.appendingPathComponent(String(path.dropFirst(2)))
+                }
+                return URL(fileURLWithPath: path)
+            }
+        }
+        if roots.isEmpty {
+            let xdg = env["XDG_CONFIG_HOME"].flatMap {
+                $0.isEmpty ? nil : URL(fileURLWithPath: $0)
+            } ?? home.appendingPathComponent(".config")
+            roots = [home.appendingPathComponent(".claude"),
+                     xdg.appendingPathComponent("claude")]
+        }
+        var seen = Set<String>()
+        return roots.compactMap { root in
+            let dir = root.appendingPathComponent("projects")
+            guard seen.insert(dir.standardizedFileURL.path).inserted else { return nil }
+            return dir
+        }
     }
 
     func collect(daysBack: Int = 30) -> UsageSnapshot.LocalUsage {
@@ -103,21 +141,22 @@ actor UsageCollector {
     // MARK: - Dateisuche
 
     private func jsonlFiles(modifiedAfter cutoff: Date) -> [URL] {
-        let projectsDir = claudeDir.appendingPathComponent("projects")
         let keys: [URLResourceKey] = [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey]
-        guard let enumerator = FileManager.default.enumerator(
-            at: projectsDir, includingPropertiesForKeys: keys,
-            options: [.skipsHiddenFiles]
-        ) else { return [] }
-
         var result: [URL] = []
-        for case let url as URL in enumerator {
-            guard url.pathExtension == "jsonl",
-                  let values = try? url.resourceValues(forKeys: Set(keys)),
-                  values.isRegularFile == true,
-                  let mtime = values.contentModificationDate,
-                  mtime >= cutoff else { continue }
-            result.append(url)
+        for projectsDir in Self.projectDirectories() {
+            guard let enumerator = FileManager.default.enumerator(
+                at: projectsDir, includingPropertiesForKeys: keys,
+                options: [.skipsHiddenFiles]
+            ) else { continue }
+
+            for case let url as URL in enumerator {
+                guard url.pathExtension == "jsonl",
+                      let values = try? url.resourceValues(forKeys: Set(keys)),
+                      values.isRegularFile == true,
+                      let mtime = values.contentModificationDate,
+                      mtime >= cutoff else { continue }
+                result.append(url)
+            }
         }
         return result
     }
@@ -157,10 +196,8 @@ actor UsageCollector {
                   let date = Self.parseDate(timestamp) else { continue }
             if log.message?.model == "<synthetic>" { continue }
 
-            var dedupeKey: String?
-            if let mid = log.message?.id {
-                dedupeKey = "\(mid):\(log.requestId ?? "")"
-            }
+            // Dedupe allein über message.id — siehe Zählregeln im Header.
+            let dedupeKey = log.message?.id
             entries.append(Entry(
                 date: date,
                 isSidechain: log.isSidechain ?? false,
@@ -192,7 +229,6 @@ actor UsageCollector {
         let type: String?
         let timestamp: String?
         let sessionId: String?
-        let requestId: String?
         let isSidechain: Bool?
         let message: Msg?
 
